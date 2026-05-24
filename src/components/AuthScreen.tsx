@@ -39,6 +39,17 @@ interface AuthScreenProps {
   setHubs: React.Dispatch<React.SetStateAction<Hub[]>>;
 }
 
+const deriveOrgCode = (name?: string) => {
+  const clean = (name || '').trim();
+  if (!clean) return 'ORG';
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (words.length >= 2) {
+    return (words[0][0] + words[1][0] + (words[1][1] || words[0][1] || 'X')).toUpperCase();
+  }
+  if (clean.length <= 3) return clean.toUpperCase();
+  return (clean.slice(0, 2) + clean.slice(-1)).toUpperCase();
+};
+
 export default function AuthScreen({
   onAuthSuccess,
   orgName,
@@ -151,6 +162,8 @@ export default function AuthScreen({
       if (userDoc.exists()) {
         const data = userDoc.data();
         const profileOrgName = data.organizationName || orgName;
+        const orgCode = deriveOrgCode(profileOrgName);
+        const fallbackHubId = `${orgCode}H01`;
 
         if (!profileOrgName || profileOrgName !== selectedOrg) {
           await firebaseSignOut(auth);
@@ -170,8 +183,8 @@ export default function AuthScreen({
           fullName: profileFullName,
           role: data.role || 'supervisor',
           email: firebaseUser.email || '',
-          hubId: data.hubId || 'GHY01',
-          employeeId: data.employeeId || `EK-${data.hubId || 'GHY01'}-SUP-${Math.floor(1000 + Math.random() * 9000)}`,
+          hubId: data.hubId || fallbackHubId,
+          employeeId: data.employeeId || `${orgCode}-${data.hubId || fallbackHubId}-SUP-${Math.floor(1000 + Math.random() * 9000)}`,
           status: data.status || 'active',
           emailVerified: firebaseUser.emailVerified,
         });
@@ -228,6 +241,8 @@ export default function AuthScreen({
       if (userDoc.exists()) {
         const data = userDoc.data();
         const profileOrgName = data.organizationName || orgName;
+        const orgCode = deriveOrgCode(profileOrgName);
+        const fallbackHubId = `${orgCode}H01`;
         if (!profileOrgName || profileOrgName !== selectedOrg) {
           await firebaseSignOut(auth);
           setErrorMessage('Login denied: organization does not match your profile.');
@@ -243,8 +258,8 @@ export default function AuthScreen({
           fullName: data.fullName,
           role: data.role || 'supervisor',
           email: userCredential.user.email || '',
-          hubId: data.hubId || 'GHY01',
-          employeeId: data.employeeId || '',
+          hubId: data.hubId || fallbackHubId,
+          employeeId: data.employeeId || `${orgCode}-${data.hubId || fallbackHubId}-SUP-${Math.floor(1000 + Math.random() * 9000)}`,
           status: data.status || 'active',
           emailVerified: userCredential.user.emailVerified,
         });
@@ -306,7 +321,8 @@ export default function AuthScreen({
       const { uid } = userCredential.user;
       await sendEmailVerification(userCredential.user);
 
-      const hubId = 'HUB01';
+      const orgCode = deriveOrgCode(wizOrgName);
+      const hubId = `${orgCode}H01`;
       const newHub: Hub = {
         hubId,
         organizationName: wizOrgName,
@@ -316,9 +332,12 @@ export default function AuthScreen({
         location: { latitude: parseFloat(wizHubLat) || 26.1158, longitude: parseFloat(wizHubLng) || 91.7086 },
         radius: parseInt(wizHubRadius) || 500,
         isVendor: wizHubIsVendor,
-        vendorName: wizHubIsVendor ? wizHubVendorName : undefined,
         config: { qrAttendance: true, gpsTrackingInterval: 30, kpiWeights: { conversion: 0.6, attendance: 0.4 } },
       };
+
+      if (wizHubIsVendor && wizHubVendorName.trim()) {
+        newHub.vendorName = wizHubVendorName.trim();
+      }
 
       const newSuperAdmin: User = {
         uid,
@@ -326,7 +345,7 @@ export default function AuthScreen({
         organizationName: wizOrgName,
         email: wizAdminEmail,
         role: 'super_admin',
-        employeeId: 'EK-HQ-ADM-0001',
+        employeeId: `${orgCode}-HQ-ADM-0001`,
         hubId,
         status: 'active',
         phoneNumber: wizAdminPhone,

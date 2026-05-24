@@ -29,6 +29,17 @@ import { doc, getDoc, setDoc, onSnapshot, collection, writeBatch, deleteDoc } fr
 import { calculateDistance } from './utils/distance';
 import { ShieldAlert, CheckCircle2, CloudLightning, Loader2, Mail, Clock, LogOut } from 'lucide-react';
 
+const deriveOrgCode = (name?: string) => {
+  const clean = (name || '').trim();
+  if (!clean) return 'ORG';
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (words.length >= 2) {
+    return (words[0][0] + words[1][0] + (words[1][1] || words[0][1] || 'X')).toUpperCase();
+  }
+  if (clean.length <= 3) return clean.toUpperCase();
+  return (clean.slice(0, 2) + clean.slice(-1)).toUpperCase();
+};
+
 export default function App() {
   // ==========================================
   // FIRESTORE SUBSCRIPTION-BASED STATE
@@ -146,6 +157,8 @@ export default function App() {
           const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
           if (userDoc.exists()) {
             const data = userDoc.data();
+            const orgCode = deriveOrgCode(data.organizationName || orgName);
+            const fallbackHubId = `${orgCode}H01`;
             // CRITICAL NAME RULE: Use ONLY Firestore fullName, never Gmail displayName
             if (!data.fullName) {
               await signOut(auth);
@@ -159,8 +172,8 @@ export default function App() {
               fullName: data.fullName,
               role: (data.role || 'supervisor') as Role,
               email: firebaseUser.email || '',
-              hubId: data.hubId || 'GHY01',
-              employeeId: data.employeeId || 'EK-HQ-ADM-0001',
+              hubId: data.hubId || fallbackHubId,
+              employeeId: data.employeeId || `${orgCode}-${data.hubId || fallbackHubId}-SUP-${Math.floor(1000 + Math.random() * 9000)}`,
               status: data.status || 'pending',
               emailVerified: firebaseUser.emailVerified
             });
@@ -657,13 +670,15 @@ export default function App() {
         const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
         if (userDoc.exists()) {
           const data = userDoc.data();
+          const orgCode = deriveOrgCode(data.organizationName || orgName);
+          const fallbackHubId = `${orgCode}H01`;
           setCurrentUser({
             uid: firebaseUser.uid,
             fullName: data.fullName,
             role: (data.role || 'supervisor') as Role,
             email: firebaseUser.email || '',
-            hubId: data.hubId || 'GHY01',
-            employeeId: data.employeeId || 'EK-HQ-ADM-0001',
+            hubId: data.hubId || fallbackHubId,
+            employeeId: data.employeeId || `${orgCode}-${data.hubId || fallbackHubId}-SUP-${Math.floor(1000 + Math.random() * 9000)}`,
             status: data.status || 'pending',
             emailVerified: firebaseUser.emailVerified
           });
