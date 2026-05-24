@@ -1,0 +1,6 @@
+{
+  "name": "Delivery KPI & Workforce Intelligence ERP",
+  "description": "Enterprise ERP System for Delivery KPI & Workforce Intelligence with interactive Rider Simulator, real-time geofenced attendance, supervisor control, and automated performance rules.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

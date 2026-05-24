@@ -1,0 +1,26 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User profile containing identity, role, employee identity, and state details",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "fullName": { "type": "string" },
+        "role": { "type": "string", "enum": ["super_admin", "admin", "supervisor", "rider"] },
+        "employeeId": { "type": "string" },
+        "hubId": { "type": "string" },
+        "supervisorId": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "pending", "suspended"] },
+        "phoneNumber": { "type": "string" }
+      },
+      "required": ["uid", "fullName", "role", "employeeId", "hubId", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Detailed persistent data of each user linked to Firebase Auth"
+    }
+  }
+}
