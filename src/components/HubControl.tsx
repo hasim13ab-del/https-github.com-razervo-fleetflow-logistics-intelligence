@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import { 
-  Sliders, 
-  MapPin, 
-  QrCode, 
-  Clock, 
-  Scale, 
-  AlertCircle, 
-  Plus, 
-  Settings, 
-  CheckCircle2 
+import {
+  Sliders,
+  MapPin,
+  QrCode,
+  Clock,
+  Scale,
+  AlertCircle,
+  Plus,
+  Settings,
+  CheckCircle2
 } from 'lucide-react';
 import { Hub, HubConfig, Location, User } from '../types';
 
@@ -115,22 +115,27 @@ export default function HubControl({
     }
 
     if (isEditingHub) {
-      onUpdateHub(newHubId, {
+      const updatedHubFields: Partial<Hub> = {
         name: newName,
         address: newAddress,
         pincode: newPincode,
         location: { latitude: newLat, longitude: newLng },
         radius: newRadius,
-        isVendor: newIsVendor,
-        vendorName: newIsVendor ? newVendorName : undefined
-      });
+        isVendor: newIsVendor
+      };
+
+      if (newIsVendor && newVendorName.trim()) {
+        updatedHubFields.vendorName = newVendorName.trim();
+      }
+
+      onUpdateHub(newHubId, updatedHubFields);
       setSuccess(`Logistics center [${newHubId}] updated successfully!`);
     } else {
       if (hubs.some((h) => h.hubId === newHubId)) {
         setErrorMsg('A Logistics hub with this identifier code already exists.');
         return;
       }
-      onAddHub({
+      const newHubPayload: Hub = {
         hubId: newHubId.toUpperCase(),
         name: newName,
         address: newAddress,
@@ -138,19 +143,24 @@ export default function HubControl({
         location: { latitude: newLat, longitude: newLng },
         radius: newRadius,
         isVendor: newIsVendor,
-        vendorName: newIsVendor ? newVendorName : undefined,
         config: {
           qrAttendance: true,
           gpsTrackingInterval: 30,
           kpiWeights: { conversion: 0.6, attendance: 0.4 }
         }
-      });
+      };
+
+      if (newIsVendor && newVendorName.trim()) {
+        newHubPayload.vendorName = newVendorName.trim();
+      }
+
+      onAddHub(newHubPayload);
       setSuccess(`Logistics center [${newHubId.toUpperCase()}] established successfully!`);
     }
 
     setIsAddingHub(false);
     setIsEditingHub(false);
-    
+
     // Clear inputs
     setNewHubId('');
     setNewName('');
@@ -162,7 +172,7 @@ export default function HubControl({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" id="hub_control_panel">
-      
+
       {/* Left side list: Hub Selector (4/12 wide) */}
       <div className="lg:col-span-4 bg-white rounded-xl border border-slate-100 shadow-xs p-5 flex flex-col justify-between h-[580px]">
         <div>
@@ -171,7 +181,7 @@ export default function HubControl({
               <MapPin className="w-5 h-5 text-blue-600" />
               <h4 className="font-bold text-slate-800 text-sm font-display">Operational Hubs</h4>
             </div>
-            
+
             {isSuperAdmin && (
               <button
                 onClick={() => {
@@ -197,21 +207,19 @@ export default function HubControl({
                   <button
                     key={h.hubId}
                     onClick={() => setActiveHubId(h.hubId)}
-                    className={`w-full text-left p-3.5 rounded-xl border transition-all ${
-                      isActive 
-                        ? 'bg-blue-900 text-white border-blue-900 shadow-sm' 
+                    className={`w-full text-left p-3.5 rounded-xl border transition-all ${isActive
+                        ? 'bg-blue-900 text-white border-blue-900 shadow-sm'
                         : 'bg-slate-50 text-slate-700 border-slate-100 hover:border-slate-300'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-xs font-display">{h.name}</span>
-                      <span className={`text-[9px] font-mono font-bold uppercase rounded px-1.5 py-0.5 ${
-                        isActive ? 'bg-blue-800 text-slate-100' : 'bg-slate-200 text-slate-600'
-                      }`}>
+                      <span className={`text-[9px] font-mono font-bold uppercase rounded px-1.5 py-0.5 ${isActive ? 'bg-blue-800 text-slate-100' : 'bg-slate-200 text-slate-600'
+                        }`}>
                         {h.hubId}
                       </span>
                     </div>
-                    
+
                     <div className="flex justify-between items-center mt-1">
                       <span className={`text-[9px] font-mono ${isActive ? 'text-blue-300' : 'text-slate-400'}`}>
                         PIN: {h.pincode}
@@ -223,9 +231,8 @@ export default function HubControl({
                       )}
                     </div>
 
-                    <p className={`text-[10px] mt-1.5 leading-relaxed truncate ${
-                      isActive ? 'text-blue-200' : 'text-slate-400'
-                    }`}>
+                    <p className={`text-[10px] mt-1.5 leading-relaxed truncate ${isActive ? 'text-blue-200' : 'text-slate-400'
+                      }`}>
                       {h.address}
                     </p>
                   </button>
@@ -409,7 +416,7 @@ export default function HubControl({
 
             {/* Hub parameters config grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              
+
               {/* Box 1: Geofence control */}
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-3.5">
                 <div className="flex items-center justify-between">
@@ -449,14 +456,13 @@ export default function HubControl({
                   <span className="font-mono text-xs font-semibold text-slate-700 flex-1">
                     {activeHub.config.qrAttendance ? 'Mandatory QR Code' : 'Autonomous GPS'}
                   </span>
-                  
+
                   <button
                     onClick={() => handleUpdateConfig('qrAttendance', !activeHub.config.qrAttendance)}
-                    className={`rounded-lg py-1 px-3 text-xs font-bold font-mono transition ${
-                      activeHub.config.qrAttendance 
-                        ? 'bg-rose-50 text-rose-700 hover:bg-rose-100' 
+                    className={`rounded-lg py-1 px-3 text-xs font-bold font-mono transition ${activeHub.config.qrAttendance
+                        ? 'bg-rose-50 text-rose-700 hover:bg-rose-100'
                         : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                    }`}
+                      }`}
                   >
                     [Toggle Method]
                   </button>

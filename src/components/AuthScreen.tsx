@@ -317,9 +317,22 @@ export default function AuthScreen({
     }
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, wizAdminEmail, wizAdminPassword);
+      const withTimeout = async <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+        return await Promise.race([
+          promise,
+          new Promise<T>((_, reject) =>
+            setTimeout(() => reject(new Error(`${label} timed out. Please check network and try again.`)), ms)
+          )
+        ]);
+      };
+
+      const userCredential = await withTimeout(
+        createUserWithEmailAndPassword(auth, wizAdminEmail, wizAdminPassword),
+        20000,
+        'Account creation'
+      );
       const { uid } = userCredential.user;
-      await sendEmailVerification(userCredential.user);
+      await withTimeout(sendEmailVerification(userCredential.user), 15000, 'Verification email');
 
       const orgCode = deriveOrgCode(wizOrgName);
       const hubId = `${orgCode}H01`;
@@ -351,15 +364,15 @@ export default function AuthScreen({
         phoneNumber: wizAdminPhone,
       };
 
-      // Write to Firestore
-      await setDoc(doc(db, 'hubs', hubId), newHub);
-      await setDoc(doc(db, 'users', uid), newSuperAdmin);
-      await setDoc(doc(db, 'system', 'config'), {
+      // Write to Firestore (order matters for current rules)
+      await withTimeout(setDoc(doc(db, 'users', uid), newSuperAdmin), 15000, 'User profile save');
+      await withTimeout(setDoc(doc(db, 'hubs', hubId), newHub), 15000, 'Hub save');
+      await withTimeout(setDoc(doc(db, 'system', 'config'), {
         orgName: wizOrgName,
         orgLogo: wizOrgLogo || '',
         primaryHubId: hubId,
         updatedAt: new Date().toISOString(),
-      });
+      }), 15000, 'System config save');
 
       // Update local state
       setHubs([newHub]);
@@ -374,7 +387,16 @@ export default function AuthScreen({
       setSuccessMessage('ERP initialized! Verification email sent. Verify and sign in.');
       setEmail(wizAdminEmail);
     } catch (err: any) {
-      setErrorMessage(err.message || 'Wizard setup failed.');
+      const code = err?.code || '';
+      if (code === 'permission-denied') {
+        setErrorMessage('Initialization blocked by Firestore rules. Please retry once or contact admin to verify rules deployment.');
+      } else if (code === 'auth/email-already-in-use') {
+        setErrorMessage('This admin email is already registered. Please use Sign In or Forgot Password.');
+      } else if (code === 'auth/network-request-failed') {
+        setErrorMessage('Network error during initialization. Please check internet and try again.');
+      } else {
+        setErrorMessage(err.message || 'Wizard setup failed.');
+      }
     } finally {
       setLoading(false);
     }
