@@ -1,15 +1,24 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, connectAuthEmulator } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 import { getAnalytics } from 'firebase/analytics';
 import { getStorage } from 'firebase/storage';
+
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const analytics = getAnalytics(app);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 export const storage = getStorage(app);
+
+// ==========================================
+// SECONDARY FIREBASE APP (Admin-scoped auth)
+// Used to create Firebase Auth users without
+// hijacking the current admin's session.
+// ==========================================
+const secondaryApp = initializeApp(firebaseConfig, 'secondary');
+export const secondaryAuth = getAuth(secondaryApp);
 
 export enum OperationType {
   CREATE = 'create',

@@ -53,7 +53,7 @@ export default function EmployeeManager({
   const [email, setEmail] = useState<string>('');
   const [role, setRole] = useState<Role>('rider');
   const [phoneNumber, setPhoneNumber] = useState<string>('');
-  const [hubId, setHubId] = useState<string>(hubs[0]?.hubId || 'GHY01');
+  const [hubId, setHubId] = useState<string>(hubs[0]?.hubId || '');
   const [superAdminPassword, setSuperAdminPassword] = useState<string>('');
 
   React.useEffect(() => {
@@ -110,7 +110,7 @@ export default function EmployeeManager({
         isIdle: false,
         gpsStatus: 'on',
         lastActive: new Date().toISOString(),
-        currentLocation: hubs.find((h) => h.hubId === hubId)?.location || { latitude: 26.1158, longitude: 91.7086 }
+        currentLocation: hubs.find((h) => h.hubId === hubId)?.location || { latitude: 0, longitude: 0 }
       } : undefined
     });
 

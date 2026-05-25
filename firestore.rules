@@ -1,25 +1,44 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Default deny catch-all
+
+    // ==========================================
+    // DEFAULT DENY — catch-all
+    // ==========================================
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // Validation helper
+    // ==========================================
+    // REUSABLE FUNCTIONS
+    // ==========================================
+
+    // Auth gate
     function isSignedIn() {
       return request.auth != null;
     }
 
+    // Owner check
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function getRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    // Fetch the requesting user's profile document
+    function getCurrentUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    // Fetch the user's role from their profile
+    function getRole() {
+      return getCurrentUserDoc().role;
+    }
+
+    // Fetch the user's organizationId from their profile
+    function getOrgId() {
+      return getCurrentUserDoc().organizationId;
+    }
+
+    // Role hierarchy checks
     function isSuperAdmin() {
       return isSignedIn() && getRole() == 'super_admin';
     }
@@ -28,70 +47,149 @@ service cloud.firestore {
       return isSignedIn() && getRole() == 'hub_admin';
     }
 
+    function isAdmin() {
+      return isSignedIn() && getRole() == 'admin';
+    }
+
     function isSupervisor() {
       return isSignedIn() && getRole() == 'supervisor';
     }
 
+    function isRider() {
+      return isSignedIn() && getRole() == 'rider';
+    }
+
+    // Combined role checks
     function isAdminOrAbove() {
-      return isSignedIn() && (getRole() == 'super_admin' || getRole() == 'hub_admin' || getRole() == 'admin');
+      return isSuperAdmin() || isHubAdmin() || isAdmin();
     }
 
     function isSupervisorOrAbove() {
       return isAdminOrAbove() || isSupervisor();
     }
 
-    // User Profile collection
-    match /users/{userId} {
-      allow read: if isSignedIn();
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId) || isSuperAdmin();
-      allow delete: if false; // Profiles shouldn't be deleted via client SDK
+    // ==========================================
+    // MULTI-TENANT ORG ISOLATION
+    // ==========================================
+    // A document is accessible to a user ONLY if:
+    //   (a) The document has an 'organizationId' field matching the user's org, OR
+    //   (b) The user is reading a document they own (their own profile)
+    //
+    // This ensures a user from Org A can NEVER see data from Org B.
+
+    function belongsToMyOrg() {
+      return resource.data.organizationId == getOrgId();
     }
 
-    // Hubs collection
-    match /hubs/{hubId} {
-      allow read: if isSignedIn();
+    function belongsToMyOrgOnWrite() {
+      return request.resource.data.organizationId == getOrgId();
+    }
+
+    function belongsToMyOrgOrOwner(userId) {
+      return isOwner(userId) || belongsToMyOrg();
+    }
+
+    // ==========================================
+    // ORGANIZATIONS COLLECTION
+    // Public read for login page dropdown.
+    // Write: Only super_admins can modify.
+    // ==========================================
+    match /organizations/{orgId} {
+      allow read: if true; // Public — needed for login dropdown
       allow create: if isSuperAdmin();
-      allow update: if isAdminOrAbove();
+      allow update: if isSuperAdmin();
       allow delete: if isSuperAdmin();
     }
 
-    // Attendance collection
+    // ==========================================
+    // USERS COLLECTION
+    // Multi-tenant: users read/write within their org.
+    // Ownership: User can always update their own profile.
+    // Even super_admins can only manage users in their org.
+    // ==========================================
+    match /users/{userId} {
+      // Read: owner, or same-org user
+      allow read: if isOwner(userId) || (isSignedIn() && belongsToMyOrg());
+      // Create: only by authenticated users within their org
+      allow create: if isSignedIn() && belongsToMyOrgOnWrite();
+      // Update: owner, or same-org super_admin, or same-org admin
+      allow update: if isOwner(userId) || (isSignedIn() && belongsToMyOrg() && isAdminOrAbove());
+      // Delete: forbidden entirely from client (use Admin SDK)
+      allow delete: if false;
+    }
+
+    // ==========================================
+    // HUBS COLLECTION
+    // Fully org-isolated. Users only see their org's hubs.
+    // ==========================================
+    match /hubs/{hubId} {
+      allow read: if isSignedIn() && belongsToMyOrg();
+      allow create: if isSuperAdmin() && belongsToMyOrgOnWrite();
+      allow update: if isAdminOrAbove() && belongsToMyOrg();
+      allow delete: if isSuperAdmin() && belongsToMyOrg();
+    }
+
+    // ==========================================
+    // ATTENDANCE COLLECTION
+    // Org-isolated. Only supervisor+ can write.
+    // ==========================================
     match /attendance/{attId} {
-      allow read: if isSignedIn();
-      allow create: if isSupervisorOrAbove();
-      allow update: if isSupervisorOrAbove();
-      allow delete: if isSuperAdmin();
+      allow read: if isSignedIn() && belongsToMyOrg();
+      allow create: if isSupervisorOrAbove() && belongsToMyOrgOnWrite();
+      allow update: if isSupervisorOrAbove() && belongsToMyOrg();
+      allow delete: if isSuperAdmin() && belongsToMyOrg();
     }
 
-    // KPI entries collection
+    // ==========================================
+    // KPI ENTRIES COLLECTION
+    // Org-isolated. Only supervisor+ can write.
+    // ==========================================
     match /kpi/{kpiId} {
-      allow read: if isSignedIn();
-      allow create: if isSupervisorOrAbove();
-      allow update: if isSupervisorOrAbove();
-      allow delete: if isSuperAdmin();
+      allow read: if isSignedIn() && belongsToMyOrg();
+      allow create: if isSupervisorOrAbove() && belongsToMyOrgOnWrite();
+      allow update: if isSupervisorOrAbove() && belongsToMyOrg();
+      allow delete: if isSuperAdmin() && belongsToMyOrg();
     }
 
-    // Shipments collection
+    // ==========================================
+    // SHIPMENTS COLLECTION
+    // Org-isolated. Only supervisor+ can write.
+    // ==========================================
     match /shipments/{shipmentId} {
-      allow read: if isSignedIn();
-      allow create: if isSupervisorOrAbove();
-      allow update: if isSupervisorOrAbove();
-      allow delete: if isSuperAdmin();
+      allow read: if isSignedIn() && belongsToMyOrg();
+      allow create: if isSupervisorOrAbove() && belongsToMyOrgOnWrite();
+      allow update: if isSupervisorOrAbove() && belongsToMyOrg();
+      allow delete: if isSuperAdmin() && belongsToMyOrg();
     }
 
-    // System config
+    // ==========================================
+    // ALERTS / NOTIFICATIONS COLLECTION
+    // Org-isolated. Only supervisor+ can write.
+    // ==========================================
+    match /alerts/{alertId} {
+      allow read: if isSignedIn() && belongsToMyOrg();
+      allow create: if isSupervisorOrAbove() && belongsToMyOrgOnWrite();
+      allow update: if isSupervisorOrAbove() && belongsToMyOrg();
+      allow delete: if isSuperAdmin() && belongsToMyOrg();
+    }
+
+    // ==========================================
+    // SYSTEM CONFIG COLLECTION
+    // Global read for all signed-in users.
+    // Write: super_admin only (global config, not org-scoped).
+    // ==========================================
     match /system/{docId} {
       allow read: if isSignedIn();
       allow write: if isSuperAdmin();
     }
 
-    // Notifications/Alerts
-    match /alerts/{alertId} {
-      allow read: if isSignedIn();
-      allow create: if isSupervisorOrAbove();
-      allow update: if isSupervisorOrAbove();
-      allow delete: if isSuperAdmin();
+    // ==========================================
+    // COUNTERS COLLECTION
+    // Read for supervisor+, write for Admin SDK only (or super_admin).
+    // ==========================================
+    match /counters/{counterId} {
+      allow read: if isSupervisorOrAbove();
+      allow write: if isSuperAdmin();
     }
   }
 }

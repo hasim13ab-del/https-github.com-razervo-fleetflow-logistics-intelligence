@@ -36,9 +36,9 @@ export default function HubControl({
   const [newName, setNewName] = useState<string>('');
   const [newAddress, setNewAddress] = useState<string>('');
   const [newPincode, setNewPincode] = useState<string>('');
-  const [newLat, setNewLat] = useState<number>(26.1158);
-  const [newLng, setNewLng] = useState<number>(91.7086);
-  const [newRadius, setNewRadius] = useState<number>(500);
+  const [newLat, setNewLat] = useState<number>(0);
+  const [newLng, setNewLng] = useState<number>(0);
+  const [newRadius, setNewRadius] = useState<number>(0);
   const [newIsVendor, setNewIsVendor] = useState<boolean>(false);
   const [newVendorName, setNewVendorName] = useState<string>('');
 
@@ -208,8 +208,8 @@ export default function HubControl({
                     key={h.hubId}
                     onClick={() => setActiveHubId(h.hubId)}
                     className={`w-full text-left p-3.5 rounded-xl border transition-all ${isActive
-                        ? 'bg-blue-900 text-white border-blue-900 shadow-sm'
-                        : 'bg-slate-50 text-slate-700 border-slate-100 hover:border-slate-300'
+                      ? 'bg-blue-900 text-white border-blue-900 shadow-sm'
+                      : 'bg-slate-50 text-slate-700 border-slate-100 hover:border-slate-300'
                       }`}
                   >
                     <div className="flex items-center justify-between">
@@ -299,14 +299,14 @@ export default function HubControl({
                     type="number"
                     step="0.0001"
                     value={newLat}
-                    onChange={(e) => setNewLat(parseFloat(e.target.value) || 26.1158)}
+                    onChange={(e) => setNewLat(parseFloat(e.target.value) || 0)}
                     className="text-xs p-1.5 border border-slate-200 rounded font-mono"
                   />
                   <input
                     type="number"
                     step="0.0001"
                     value={newLng}
-                    onChange={(e) => setNewLng(parseFloat(e.target.value) || 91.7086)}
+                    onChange={(e) => setNewLng(parseFloat(e.target.value) || 0)}
                     className="text-xs p-1.5 border border-slate-200 rounded font-mono"
                   />
                 </div>
@@ -460,8 +460,8 @@ export default function HubControl({
                   <button
                     onClick={() => handleUpdateConfig('qrAttendance', !activeHub.config.qrAttendance)}
                     className={`rounded-lg py-1 px-3 text-xs font-bold font-mono transition ${activeHub.config.qrAttendance
-                        ? 'bg-rose-50 text-rose-700 hover:bg-rose-100'
-                        : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                      ? 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+                      : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                       }`}
                   >
                     [Toggle Method]

@@ -120,12 +120,12 @@ export default function KPINode({
       return;
     }
 
-    const finalTrackingId = trackingId || 'manual entry';
+    const finalTrackingId = trackingId || '';
 
     onAddKPIEntry({
       riderId: selectedRiderId,
       date: dateStr,
-      hubId: targetRider?.hubId || 'GHY01',
+      hubId: targetRider?.hubId || '',
       ofd,
       delivered,
       failed,

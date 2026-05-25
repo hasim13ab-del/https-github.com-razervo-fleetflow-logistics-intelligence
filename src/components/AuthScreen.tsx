@@ -8,9 +8,10 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
+import { useNavigate } from 'react-router-dom';
 import { auth, db, googleProvider } from '../firebase';
-import { Role, User, Hub, UserStatus } from '../types';
+import { Role, User, Hub, UserStatus, OrganizationTenant } from '../types';
 import { setGoogleAccessToken } from '../utils/sheets';
 import landingBg from '../assets/logistics_landing_bg_1779387214003.png';
 import {
@@ -98,23 +99,29 @@ export default function AuthScreen({
   const [selectedOrg, setSelectedOrg] = useState(orgName || '');
   const [selectedRole, setSelectedRole] = useState('');
 
-  const registeredOrgs = React.useMemo(() => {
-    const orgs = new Set<string>();
-    if (orgName) orgs.add(orgName);
-    users.forEach((u) => {
-      if (u.organizationName) orgs.add(u.organizationName);
-    });
-    hubs.forEach((h) => {
-      if (h.organizationName) orgs.add(h.organizationName);
-    });
-    return Array.from(orgs);
-  }, [orgName, users, hubs]);
+  const navigate = useNavigate();
+  const [organizations, setOrganizations] = useState<OrganizationTenant[]>([]);
+
+  useEffect(() => {
+    const fetchOrgs = async () => {
+      try {
+        const snap = await getDocs(collection(db, 'organizations'));
+        const orgsList: OrganizationTenant[] = [];
+        snap.forEach(d => orgsList.push({ id: d.id, ...d.data() } as OrganizationTenant));
+        setOrganizations(orgsList);
+      } catch (err) {
+        console.error("Failed to fetch organizations:", err);
+      }
+    };
+    fetchOrgs();
+  }, []);
 
   useEffect(() => {
     if (!selectedOrg && orgName) {
-      setSelectedOrg(orgName);
+      const match = organizations.find(o => o.name === orgName);
+      if (match) setSelectedOrg(match.id);
     }
-  }, [orgName, selectedOrg]);
+  }, [orgName, selectedOrg, organizations]);
 
   // ==========================================
   // GOOGLE SIGN-IN (Gmail Identity Provider)
@@ -154,44 +161,98 @@ export default function AuthScreen({
       }
 
       const firebaseUser = result.user;
+      const gmail = firebaseUser.email || '';
 
-      // CRITICAL NAME RULE: Do NOT use Gmail displayName. Only Firestore /users/{uid} Full Name.
-      // Query Firestore for the internal profile
-      const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+      // ==========================================
+      // PRE-REGISTRATION CHECK
+      // Block unregistered Gmail accounts.
+      // Query the 'users' collection to see if this
+      // email exists in any approved employee profile.
+      // ==========================================
+      const usersSnap = await getDocs(collection(db, 'users'));
+      let userProfileFound = false;
+      let matchedDoc: { id: string; data: any } | null = null;
 
-      if (userDoc.exists()) {
-        const data = userDoc.data();
-        const profileOrgName = data.organizationName || orgName;
-        const orgCode = deriveOrgCode(profileOrgName);
-        const fallbackHubId = `${orgCode}H01`;
-
-        if (!profileOrgName || profileOrgName !== selectedOrg) {
-          await firebaseSignOut(auth);
-          setErrorMessage('Login denied: organization does not match your profile.');
-          return;
+      usersSnap.forEach(doc => {
+        const d = doc.data();
+        if (d.email?.toLowerCase() === gmail.toLowerCase()) {
+          userProfileFound = true;
+          matchedDoc = { id: doc.id, data: d };
         }
-        if ((data.role || 'supervisor') !== selectedRole) {
-          await firebaseSignOut(auth);
-          setErrorMessage('Login denied: selected role does not match your profile role.');
-          return;
+      });
+
+      if (!userProfileFound) {
+        // Unauthorized email — immediately sign out and delete the
+        // Firebase Auth record so the user cannot keep the session.
+        try {
+          await firebaseUser.delete();
+        } catch (delErr) {
+          console.warn('Could not delete unauthorized user record:', delErr);
         }
-
-        // Use ONLY the Firestore "Full Name" field, never Gmail displayName
-        const profileFullName = data.fullName || 'Unnamed Operator';
-
-        onAuthSuccess(firebaseUser.uid, {
-          fullName: profileFullName,
-          role: data.role || 'supervisor',
-          email: firebaseUser.email || '',
-          hubId: data.hubId || fallbackHubId,
-          employeeId: data.employeeId || `${orgCode}-${data.hubId || fallbackHubId}-SUP-${Math.floor(1000 + Math.random() * 9000)}`,
-          status: data.status || 'active',
-          emailVerified: firebaseUser.emailVerified,
-        });
-      } else {
         await firebaseSignOut(auth);
-        setErrorMessage('Profile not found. Please contact your administrator to complete onboarding first.');
+        setErrorMessage('Unauthorized: Your email has not been registered by an administrator.');
+        setLoading(false);
+        return;
       }
+
+      // ==========================================
+      // AUTHORIZED — process the login
+      // ==========================================
+      // The matched document may have a different UID than the
+      // Google-authenticated user. If they differ, we need to link
+      // the Firestore profile to the Google UID.
+      const data = matchedDoc!.data;
+      const firestoreUid = matchedDoc!.id;
+
+      // If the Firestore profile has a different UID than the Google
+      // auth UID, update the Firestore doc to reference the Google UID
+      if (firestoreUid !== firebaseUser.uid) {
+        // Copy the old profile data to the new Google UID
+        await setDoc(doc(db, 'users', firebaseUser.uid), {
+          ...data,
+          uid: firebaseUser.uid,
+        });
+        // Optionally delete the old profile if it was a local placeholder
+        if (firestoreUid.startsWith('emp_')) {
+          try { await deleteDoc(doc(db, 'users', firestoreUid)); } catch (_) { }
+        }
+      }
+
+      const userOrgId = data.organizationId || data.organizationName;
+      const orgCode = deriveOrgCode(data.organizationName || orgName);
+      const fallbackHubId = `${orgCode}H01`;
+      const selectedOrgObj = organizations.find(o => o.id === selectedOrg);
+
+      if (!userOrgId || userOrgId !== selectedOrg) {
+        await firebaseSignOut(auth);
+        setErrorMessage('Login denied: organization does not match your profile.');
+        return;
+      }
+      if ((data.role || 'supervisor') !== selectedRole) {
+        await firebaseSignOut(auth);
+        setErrorMessage('Login denied: selected role does not match your profile role.');
+        return;
+      }
+
+      // Use ONLY the Firestore "Full Name" field, never Gmail displayName
+      const profileFullName = data.fullName || '';
+
+      sessionStorage.setItem('orgId', selectedOrgObj?.id || '');
+      sessionStorage.setItem('orgSlug', selectedOrgObj?.slug || 'default');
+      sessionStorage.setItem('orgName', selectedOrgObj?.name || '');
+      sessionStorage.setItem('role', selectedRole);
+
+      onAuthSuccess(firebaseUser.uid, {
+        fullName: profileFullName,
+        role: data.role || 'supervisor',
+        email: firebaseUser.email || '',
+        hubId: data.hubId || fallbackHubId,
+        employeeId: data.employeeId || `${orgCode}-${data.hubId || fallbackHubId}-SUP-${Math.floor(1000 + Math.random() * 9000)}`,
+        status: data.status || 'active',
+        emailVerified: firebaseUser.emailVerified,
+      });
+
+      navigate(`/dashboard/${selectedOrgObj?.slug || 'default'}`);
     } catch (err: any) {
       if (err.code === 'auth/popup-closed-by-user') {
         setErrorMessage('Sign-in cancelled. Please try again.');
@@ -240,10 +301,12 @@ export default function AuthScreen({
       const userDoc = await getDoc(doc(db, 'users', uid));
       if (userDoc.exists()) {
         const data = userDoc.data();
-        const profileOrgName = data.organizationName || orgName;
-        const orgCode = deriveOrgCode(profileOrgName);
+        const userOrgId = data.organizationId || data.organizationName;
+        const orgCode = deriveOrgCode(data.organizationName || orgName);
         const fallbackHubId = `${orgCode}H01`;
-        if (!profileOrgName || profileOrgName !== selectedOrg) {
+        const selectedOrgObj = organizations.find(o => o.id === selectedOrg);
+
+        if (!userOrgId || userOrgId !== selectedOrg) {
           await firebaseSignOut(auth);
           setErrorMessage('Login denied: organization does not match your profile.');
           return;
@@ -254,6 +317,11 @@ export default function AuthScreen({
           return;
         }
 
+        sessionStorage.setItem('orgId', selectedOrgObj?.id || '');
+        sessionStorage.setItem('orgSlug', selectedOrgObj?.slug || 'default');
+        sessionStorage.setItem('orgName', selectedOrgObj?.name || '');
+        sessionStorage.setItem('role', selectedRole);
+
         onAuthSuccess(uid, {
           fullName: data.fullName,
           role: data.role || 'supervisor',
@@ -263,6 +331,8 @@ export default function AuthScreen({
           status: data.status || 'active',
           emailVerified: userCredential.user.emailVerified,
         });
+
+        navigate(`/dashboard/${selectedOrgObj?.slug || 'default'}`);
       } else {
         setErrorMessage('Profile not found in database.');
       }
@@ -672,7 +742,7 @@ export default function AuthScreen({
                 <select value={selectedOrg} onChange={e => setSelectedOrg(e.target.value)}
                   className="block w-full px-3 py-2 bg-slate-900/60 border border-slate-700 rounded-lg text-slate-100 text-sm focus:outline-none">
                   <option value="">Select organization</option>
-                  {registeredOrgs.map(org => <option key={org} value={org}>{org}</option>)}
+                  {organizations.map(org => <option key={org.id} value={org.id}>{org.name}</option>)}
                   <option value="__register_org__">+ Register Organization</option>
                 </select>
               </div>

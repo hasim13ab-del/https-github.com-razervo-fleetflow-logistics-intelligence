@@ -44,9 +44,17 @@ export interface LiveData {
   currentLocation: Location;
 }
 
+export interface OrganizationTenant {
+  id: string;
+  name: string;
+  slug: string;
+  logoUrl?: string;
+}
+
 export interface User {
   uid: string;
   fullName: string;
+  organizationId?: string;
   organizationName?: string;
   role: Role;
   email: string;
