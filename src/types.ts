@@ -24,7 +24,7 @@ export interface HubConfig {
 }
 
 export interface Hub {
-  hubId: string; // e.g. "GHY01"
+  hubId: string; // e.g. "HUB01"
   organizationName?: string;
   name: string;
   address: string;
@@ -58,7 +58,7 @@ export interface User {
   organizationName?: string;
   role: Role;
   email: string;
-  employeeId: string; // e.g. "EK-GHY01-DL-0001"
+  employeeId: string; // e.g. "ORG-HUB01-DL-0001"
   hubId: string;
   supervisorId?: string;
   status: UserStatus;

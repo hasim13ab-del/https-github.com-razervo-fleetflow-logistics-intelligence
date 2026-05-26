@@ -154,7 +154,7 @@ export default function ProfileView({ currentUser, hubs }: ProfileViewProps) {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500 font-sans">ASSIGNED OPERATION HUB:</span>
-                  <span className="text-slate-250 font-semibold">{currentUser.hubId} ({userHub?.name?.split(' ')[0] || 'Guwahati'})</span>
+                  <span className="text-slate-250 font-semibold">{currentUser.hubId} ({userHub?.name?.split(' ')[0] || 'Hub'})</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500 font-sans">REGISTERED DISPATCH EMAIL:</span>
@@ -171,8 +171,8 @@ export default function ProfileView({ currentUser, hubs }: ProfileViewProps) {
               </div>
               <p className="text-[11px] text-slate-500 leading-relaxed font-mono">
                 Hub Base ID: <span className="font-bold text-slate-700">{currentUser.hubId}</span><br />
-                Hub Site: <span className="text-slate-700 font-bold">{userHub?.name || 'Guwahati Town Hub (Assam)'}</span><br />
-                Location Address: <span className="text-slate-600">{userHub?.address || 'Adabari, Guwahati, Assam'}</span>
+                Hub Site: <span className="text-slate-700 font-bold">{userHub?.name || 'Base Logistics Hub'}</span><br />
+                Location Address: <span className="text-slate-600">{userHub?.address || 'Primary Operation Zone'}</span>
               </p>
             </div>
           </div>
@@ -236,7 +236,7 @@ export default function ProfileView({ currentUser, hubs }: ProfileViewProps) {
                             </span>
                           )}
                         </div>
-                        <p className="text-[10px] text-slate-500 font-mono mt-0.5">{lvl.clearance} · Active default demo id: <span className="text-slate-600 font-bold">{lvl.activeUsers}</span></p>
+                        <p className="text-[10px] text-slate-500 font-mono mt-0.5">{lvl.clearance} · Active Users: <span className="text-slate-600 font-bold">{lvl.activeUsers}</span></p>
                       </div>
                     </div>
 

@@ -32,9 +32,19 @@ export default function AttendanceManager({
   const [selectedHub, setSelectedHub] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
+  const getOrgPrefix = () => {
+    const name = sessionStorage.getItem('orgName') || 'ORG';
+    const clean = name.trim();
+    if (!clean) return 'ORG';
+    const words = clean.split(/\s+/).filter(Boolean);
+    if (words.length >= 2) return (words[0][0] + words[1][0] + (words[1][1] || words[0][1] || 'X')).toUpperCase().substring(0, 4);
+    if (clean.length <= 4) return clean.toUpperCase();
+    return clean.slice(0, 4).toUpperCase();
+  };
+
   // Rotating QR code token simulator
   const [currentQrToken, setCurrentQrToken] = useState<string>(
-    'EK-GHY01-' + Math.floor(1000 + Math.random() * 9000)
+    `${getOrgPrefix()}-` + (currentUser?.hubId || 'HUB') + '-' + Math.floor(1000 + Math.random() * 9000)
   );
 
   // Today's date
@@ -42,8 +52,8 @@ export default function AttendanceManager({
 
   const rotateQrToken = () => {
     const randomHex = Math.floor(1000 + Math.random() * 9000);
-    const activeHubCode = selectedHub === 'ALL' ? 'GHY01' : selectedHub;
-    setCurrentQrToken(`EK-${activeHubCode}-${randomHex}`);
+    const activeHubCode = selectedHub === 'ALL' ? (currentUser?.hubId || 'HUB') : selectedHub;
+    setCurrentQrToken(`${getOrgPrefix()}-${activeHubCode}-${randomHex}`);
   };
 
   // Riders list filtered by hub and search

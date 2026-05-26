@@ -82,7 +82,7 @@ export default function LoginPortal({ users, onLoginSuccess }: LoginPortalProps)
     const matchedUser = users.find(u => u.uid === uid);
     if (matchedUser) {
       if (matchedUser.status === 'suspended') {
-        setErrorFeedback(`ACCESS SUSPENDED: Demopoint "${matchedUser.fullName}" is currently marked suspended!`);
+        setErrorFeedback(`ACCESS SUSPENDED: Account "${matchedUser.fullName}" is currently marked suspended!`);
         return;
       }
       onLoginSuccess(matchedUser);
@@ -251,7 +251,7 @@ export default function LoginPortal({ users, onLoginSuccess }: LoginPortalProps)
                 <input
                   type="text"
                   required
-                  placeholder={authMode === 'office' ? 'e.g. EK-HQ-ADM-0001 (or Name)' : 'e.g. EK-GHY01-DL-0432 (or Phone)'}
+                  placeholder={authMode === 'office' ? 'e.g. ORG-HQ-ADM-0001 (or Name)' : 'e.g. ORG-HUB-DL-0432 (or Phone)'}
                   value={credentialInput}
                   onChange={(e) => setCredentialInput(e.target.value)}
                   className={`w-full bg-slate-950 border ${

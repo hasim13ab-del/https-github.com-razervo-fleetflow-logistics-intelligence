@@ -328,7 +328,7 @@ export default function RiderMonitoring({
 
           </div>
           <p className="text-[10px] text-slate-400">
-            Center: <span className="font-semibold text-slate-700">{activeHub?.name || 'Guwahati Hub'}</span>
+            Center: <span className="font-semibold text-slate-700">{activeHub?.name || 'Primary Hub'}</span>
           </p>
         </div>
 
